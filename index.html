@@ -1,22 +1,489 @@
 
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>אתגר הדופק: 24 שעות</title>
+    
+    <!-- CDNs -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script type="importmap">
-    {
-      "imports": {
-        "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-        "react/": "https://esm.sh/react@^19.2.4/",
-        "react": "https://esm.sh/react@^19.2.4"
-      }
-    }
-    </script>
-  </head>
-  <body class="bg-[#f0f7ff] text-slate-900 font-sans m-0 p-0 overflow-hidden">
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;800&display=swap');
+        
+        body {
+            font-family: 'Assistant', sans-serif;
+            background-color: #f0f7ff;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        @keyframes bounce-in {
+          0% { transform: scale(0.3); opacity: 0; }
+          50% { transform: scale(1.05); opacity: 1; }
+          70% { transform: scale(0.9); }
+          100% { transform: scale(1); }
+        }
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-bounce-in {
+          animation: bounce-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        .animate-fade-in {
+          animation: fade-in 0.8s ease-out forwards;
+        }
+        
+        .ecg-container {
+            background: #000;
+            border: 4px solid #94a3b8; /* slate-400 */
+            border-radius: 1.5rem;
+            overflow: hidden;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+
+        /* Custom scrollbar for some containers if needed */
+        ::-webkit-scrollbar {
+          width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+          background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4"
+  }
+}
+</script>
+</head>
+<body class="bg-[#f0f7ff] text-slate-800">
     <div id="root"></div>
-  </body>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // --- Configuration & Constants ---
+        const ActivityLevel = {
+          SLEEPING: 'שינה',
+          WALKING: 'הליכה',
+          SPRINTING: 'ריצה מהירה',
+          CRISIS: 'מצב חירום'
+        };
+
+        const GamePhase = {
+          INTRO: 'intro',
+          READY: 'ready',
+          PLAYING: 'playing',
+          FINISHED: 'finished'
+        };
+
+        const MAX_ROUNDS = 6;
+        const DAILY_SCHEDULE = [
+          { time: '02:00', activity: ActivityLevel.SLEEPING, description: 'לילה עמוק, הגוף במנוחה מוחלטת.' },
+          { time: '08:30', activity: ActivityLevel.WALKING, description: 'הליכה קלה לעבודה באוויר הקריר.' },
+          { time: '11:15', activity: ActivityLevel.CRISIS, description: 'פתאום משהו לא מרגיש תקין בלב...' },
+          { time: '16:00', activity: ActivityLevel.SPRINTING, description: 'אימון ריצה אינטנסיבי בפארק.' },
+          { time: '19:45', activity: ActivityLevel.CRISIS, description: 'שוב דפיקות לב לא סדירות בערב.' },
+          { time: '23:30', activity: ActivityLevel.SLEEPING, description: 'סוף היום, חזרה לשינה והתאוששות.' }
+        ];
+
+        const BPM_MAP = {
+          [ActivityLevel.SLEEPING]: 60,
+          [ActivityLevel.WALKING]: 100,
+          [ActivityLevel.SPRINTING]: 170,
+          [ActivityLevel.CRISIS]: 0
+        };
+
+        const SCIENTIFIC_FACTS = {
+          [ActivityLevel.SLEEPING]: "נכון! בזמן שינה הלב פועם בקצב נמוך כדי לחסוך באנרגיה.",
+          [ActivityLevel.WALKING]: "מעולה! הליכה מעלה מעט את הדופק כדי להזרים חמצן לשרירים.",
+          [ActivityLevel.SPRINTING]: "בדיוק! במאמץ גבוה הלב מגיע לדופק גבוה מאוד כדי לעמוד בדרישת השרירים.",
+          [ActivityLevel.CRISIS]: "נכון. זהו מקצב לא תקין המעיד על הפרעה חשמלית בלב."
+        };
+
+        const ECG_COLORS = {
+          line: '#00ff41',
+          glow: 'rgba(0, 255, 65, 0.5)',
+          grid: '#003300'
+        };
+
+        // --- Components ---
+
+        const ECGMonitor = ({ activity, height = 400, showLabels = true, timeLabel }) => {
+          const canvasRef = useRef(null);
+          const dataPointsRef = useRef([]);
+          const frameRef = useRef(0);
+          const cycleTimeRef = useRef(0);
+          const currentActivityRef = useRef(activity);
+
+          const STEP = 1.5; 
+          const MAX_POINTS = 801; 
+
+          useEffect(() => {
+            if (dataPointsRef.current.length === 0) {
+              dataPointsRef.current = new Array(MAX_POINTS).fill(0);
+            }
+          }, []);
+
+          useEffect(() => {
+            currentActivityRef.current = activity;
+          }, [activity]);
+
+          const generateHeartbeat = (t, bpm, isCrisis) => {
+            if (isCrisis) {
+              const randomType = Math.floor(Date.now() / 2000) % 3;
+              if (randomType === 0) return (Math.random() - 0.5) * 45; 
+              if (randomType === 1) return Math.sin(t * 60) * 20; 
+              return (Math.random() - 0.5) * 5; 
+            }
+            const cyclePos = t % 1.0;
+            if (cyclePos < 0.1) return 0;
+            if (cyclePos < 0.2) return Math.sin((cyclePos - 0.1) * 10 * Math.PI) * 5;
+            if (cyclePos < 0.25) return 0;
+            if (cyclePos < 0.27) return -(cyclePos - 0.25) * 200;
+            if (cyclePos < 0.32) return (cyclePos - 0.27) * 800 - 4;
+            if (cyclePos < 0.35) return -(cyclePos - 0.32) * 500 + 36;
+            if (cyclePos < 0.45) return 0;
+            if (cyclePos < 0.6) return Math.sin((cyclePos - 0.45) * 6.6 * Math.PI) * 8;
+            return 0;
+          };
+
+          const draw = useCallback(() => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            const width = canvas.width;
+            const canvasHeight = canvas.height;
+            const midY = canvasHeight / 2;
+
+            const activeActivity = currentActivityRef.current;
+            const bpm = BPM_MAP[activeActivity];
+            const isCrisis = activeActivity === ActivityLevel.CRISIS;
+            
+            const cycleSpeed = isCrisis ? 0.04 : (bpm / 60) * 0.012;
+            cycleTimeRef.current = (cycleTimeRef.current + cycleSpeed) % 1.0;
+
+            const newY = generateHeartbeat(cycleTimeRef.current, bpm, isCrisis);
+            dataPointsRef.current.push(newY);
+            
+            if (dataPointsRef.current.length > MAX_POINTS) {
+              dataPointsRef.current.shift();
+            }
+
+            ctx.fillStyle = '#000800';
+            ctx.fillRect(0, 0, width, canvasHeight);
+
+            // Grid
+            ctx.strokeStyle = ECG_COLORS.grid;
+            ctx.lineWidth = 1;
+            for (let x = 0; x < width; x += 40) {
+              ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvasHeight); ctx.stroke();
+            }
+            for (let y = 0; y < canvasHeight; y += 40) {
+              ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+            }
+
+            // ECG Line
+            ctx.beginPath();
+            ctx.strokeStyle = ECG_COLORS.line;
+            ctx.lineWidth = 2.5;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = ECG_COLORS.glow;
+            ctx.lineJoin = 'round';
+
+            const points = dataPointsRef.current;
+            for (let i = 0; i < points.length; i++) {
+              const x = i * STEP;
+              const y = midY - (points[i] * (canvasHeight / 400));
+              if (i === 0) {
+                ctx.moveTo(x, y);
+              } else {
+                ctx.lineTo(x, y);
+              }
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            if (points.length > 0) {
+              const lastY = midY - (points[points.length - 1] * (canvasHeight / 400));
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath();
+              ctx.arc(width, lastY, 4, 0, Math.PI * 2);
+              ctx.fill();
+            }
+
+            frameRef.current = requestAnimationFrame(draw);
+          }, []);
+
+          useEffect(() => {
+            frameRef.current = requestAnimationFrame(draw);
+            return () => cancelAnimationFrame(frameRef.current);
+          }, [draw]);
+
+          return (
+            <div className="ecg-container h-full w-full" dir="ltr">
+              {showLabels && (
+                <React.Fragment>
+                  <div className="absolute top-3 left-4 flex flex-col gap-2 z-10">
+                    <div className="text-[10px] md:text-xs font-mono text-green-500 uppercase tracking-widest opacity-80">
+                      ניטור רציף - LEAD II
+                    </div>
+                    {timeLabel && (
+                      <div className="flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-green-500/50 text-white font-mono text-xl shadow-lg animate-pulse">
+                        <span className="text-green-400">🕒</span>
+                        <span>{timeLabel}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="absolute top-3 right-4 flex flex-col items-end z-10 opacity-80">
+                    <div className="text-[10px] md:text-xs font-mono text-green-500 uppercase">דופק (BPM)</div>
+                    <div className="text-2xl font-mono text-green-400 font-bold">
+                      {activity === ActivityLevel.CRISIS ? '???' : BPM_MAP[activity]}
+                    </div>
+                  </div>
+                </React.Fragment>
+              )}
+              <canvas 
+                ref={canvasRef} 
+                width={1200} 
+                height={height} 
+                className="w-full h-full"
+              />
+            </div>
+          );
+        };
+
+        const App = () => {
+          const [state, setState] = useState({
+            score: 0,
+            currentRoundIndex: 0,
+            phase: GamePhase.INTRO,
+            feedback: {
+              show: false,
+              isCorrect: false,
+              message: '',
+            },
+          });
+
+          const currentEvent = DAILY_SCHEDULE[state.currentRoundIndex];
+
+          const startGame = () => {
+            setState(prev => ({ 
+              ...prev, 
+              phase: GamePhase.READY, 
+              currentRoundIndex: 0, 
+              score: 0 
+            }));
+            setTimeout(() => {
+              setState(prev => ({ ...prev, phase: GamePhase.PLAYING }));
+            }, 1800);
+          };
+
+          const handleChoice = (choice) => {
+            if (state.feedback.show) return;
+
+            const isCorrect = choice === currentEvent.activity;
+            const fact = SCIENTIFIC_FACTS[currentEvent.activity] || '';
+            
+            setState(prev => ({
+              ...prev,
+              score: isCorrect ? prev.score + 10 : Math.max(0, prev.score - 5),
+              feedback: {
+                show: true,
+                isCorrect,
+                message: isCorrect 
+                  ? fact 
+                  : "לא בדיוק. שימו לב לקצב הלב - האם הוא מתאים לפעילות זו בשעה זו?"
+              }
+            }));
+
+            const delay = isCorrect ? 4000 : 3000;
+
+            setTimeout(() => {
+              if (state.currentRoundIndex >= MAX_ROUNDS - 1 && isCorrect) {
+                setState(prev => ({ ...prev, phase: GamePhase.FINISHED, feedback: { ...prev.feedback, show: false } }));
+              } else if (isCorrect) {
+                setState(prev => ({ 
+                  ...prev, 
+                  currentRoundIndex: prev.currentRoundIndex + 1,
+                  feedback: { ...prev.feedback, show: false } 
+                }));
+              } else {
+                setState(prev => ({ ...prev, feedback: { ...prev.feedback, show: false } }));
+              }
+            }, delay);
+          };
+
+          return (
+            <div className="min-h-screen flex flex-col items-center justify-start bg-[#f0f7ff] text-slate-800 p-4 md:p-8 font-sans overflow-y-auto" dir="rtl">
+              {/* Header */}
+              <header className="w-full max-w-4xl flex justify-between items-center mb-8 pb-4 border-b border-blue-200 shrink-0">
+                <div>
+                  <h1 className="text-2xl md:text-4xl font-black text-slate-800 tracking-tight">
+                    אתגר הדופק: <span className="text-blue-600">24 שעות</span>
+                  </h1>
+                  <p className="text-sm text-slate-500 font-medium">מעבדה וירטואלית: ניטור יממה בחיי אדם</p>
+                </div>
+                {state.phase === GamePhase.PLAYING && (
+                  <div className="flex gap-4">
+                    <div className="bg-white px-4 py-2 rounded-2xl border border-blue-100 shadow-sm flex flex-col items-center min-w-[80px]">
+                      <span className="text-[10px] uppercase text-slate-400 font-bold">שלב</span>
+                      <span className="text-xl font-mono text-slate-800">{state.currentRoundIndex + 1}/{MAX_ROUNDS}</span>
+                    </div>
+                    <div className="bg-white px-4 py-2 rounded-2xl border border-green-100 shadow-sm flex flex-col items-center min-w-[80px]">
+                      <span className="text-[10px] uppercase text-green-600 font-bold">ניקוד</span>
+                      <span className="text-xl font-mono text-slate-800">{state.score}</span>
+                    </div>
+                  </div>
+                )}
+              </header>
+
+              {/* Main Game Area */}
+              <div className="w-full max-w-4xl flex-1 flex flex-col items-center justify-center">
+                
+                {state.phase === GamePhase.INTRO && (
+                  <div className="bg-white p-8 md:p-12 rounded-[2rem] border border-blue-100 shadow-2xl w-full animate-fade-in">
+                    <h2 className="text-3xl font-black mb-6 text-slate-800 text-center">איך הלב מגיב ליום שלנו?</h2>
+                    <p className="text-center text-slate-600 mb-10 text-lg leading-relaxed">
+                      הלב משנה את הקצב שלו לאורך כל היממה בהתאם למאמץ ולבריאות שלנו. <br/>
+                      המטרה: לזהות מה האדם עושה ב-6 נקודות זמן ביום (24 שעות).
+                    </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+                      {Object.values(ActivityLevel).map(level => (
+                        <div key={level} className="p-5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col gap-3 shadow-sm hover:shadow-md transition-shadow">
+                          <span className="font-bold text-slate-700 text-lg">{level}</span>
+                          <div className="h-20 w-full rounded-xl overflow-hidden border border-slate-300">
+                            <ECGMonitor activity={level} height={100} showLabels={false} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <button 
+                      onClick={startGame}
+                      className="w-full py-6 bg-blue-600 hover:bg-blue-700 text-white font-black text-2xl rounded-2xl transition-all shadow-lg active:scale-95"
+                    >
+                      בואו נתחיל את היום!
+                    </button>
+                  </div>
+                )}
+
+                {state.phase === GamePhase.READY && (
+                  <div className="flex-1 flex flex-col items-center justify-center animate-pulse">
+                    <h2 className="text-7xl md:text-9xl font-black text-blue-600 tracking-tighter drop-shadow-xl">מתחילים...</h2>
+                    <p className="text-2xl text-slate-400 mt-6 italic">השעה 02:00, הלילה בעיצומו</p>
+                  </div>
+                )}
+
+                {state.phase === GamePhase.PLAYING && (
+                  <div className="w-full flex flex-col gap-8 md:gap-10 animate-fade-in">
+                    <div className="text-center">
+                      <h3 className="text-2xl md:text-3xl font-black text-slate-800 mb-2">מה האדם עושה בשעה זו?</h3>
+                      <p className="text-slate-500 font-medium">בחנו את רצף הפעימות במוניטור</p>
+                    </div>
+
+                    <div className="w-full aspect-[16/9] md:aspect-[21/9] max-h-[440px]">
+                      <ECGMonitor 
+                        activity={currentEvent.activity} 
+                        timeLabel={currentEvent.time} 
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6 pb-12">
+                      {Object.values(ActivityLevel).map((level) => (
+                        <button
+                          key={level}
+                          onClick={() => handleChoice(level)}
+                          disabled={state.feedback.show}
+                          className={`
+                            py-6 md:py-10 rounded-3xl border-2 transition-all duration-300 font-black text-2xl shadow-sm
+                            ${state.feedback.show && currentEvent.activity === level && state.feedback.isCorrect
+                              ? 'bg-green-500 border-green-400 text-white scale-105 z-10 shadow-green-200 shadow-xl'
+                              : 'bg-slate-200 border-slate-300 text-slate-700 hover:border-blue-400 hover:bg-blue-50 active:scale-95'
+                            }
+                            ${state.feedback.show && level !== currentEvent.activity ? 'opacity-30 blur-[1px]' : ''}
+                          `}
+                        >
+                          {level}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {state.phase === GamePhase.FINISHED && (
+                  <div className="bg-white p-10 md:p-16 rounded-[3rem] border border-blue-100 shadow-2xl w-full max-w-2xl text-center animate-fade-in">
+                    <div className="text-7xl mb-8">✨</div>
+                    <h2 className="text-5xl font-black mb-4 text-slate-800">היום הושלם!</h2>
+                    <p className="text-slate-500 text-xl mb-12 font-medium">ניתחתם בהצלחה את פעילות הלב לאורך יממה שלמה.</p>
+                    
+                    <div className="bg-blue-50 rounded-3xl p-8 mb-12 border border-blue-100 shadow-inner">
+                      <div className="text-sm text-blue-400 uppercase font-black mb-2 tracking-widest">הניקוד שצברת</div>
+                      <div className="text-8xl font-mono text-blue-600 font-black tracking-tighter">{state.score}</div>
+                    </div>
+
+                    <button 
+                      onClick={startGame}
+                      className="w-full py-6 bg-blue-600 hover:bg-blue-700 text-white font-black text-2xl rounded-2xl transition-all shadow-xl active:scale-95"
+                    >
+                      יום חדש
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Feedback Overlay */}
+              {state.feedback.show && state.phase === GamePhase.PLAYING && (
+                <div className="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm z-50 p-4">
+                  <div className={`
+                    max-w-lg w-full p-10 rounded-[2.5rem] border-8 shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] transform animate-bounce-in
+                    ${state.feedback.isCorrect ? 'bg-white border-green-500' : 'bg-white border-red-500'}
+                  `}>
+                    <div className="flex flex-col items-center text-center">
+                      <div className={`text-8xl mb-6 ${state.feedback.isCorrect ? 'text-green-500' : 'text-red-500'}`}>
+                        {state.feedback.isCorrect ? '✓' : '✗'}
+                      </div>
+                      <h2 className={`text-3xl font-black mb-6 ${state.feedback.isCorrect ? 'text-green-600' : 'text-red-600'}`}>
+                        {state.feedback.isCorrect ? 'זיהוי נכון!' : 'נסו שוב...'}
+                      </h2>
+                      <p className="text-2xl text-slate-700 leading-relaxed font-bold">
+                        {state.feedback.message}
+                      </p>
+                      {state.feedback.isCorrect && (
+                        <div className="mt-10 pt-6 border-t border-slate-100 w-full text-lg text-slate-400 font-medium italic">
+                          {state.currentRoundIndex < MAX_ROUNDS - 1 ? 'היום ממשיך לשעות הבאות...' : 'היום הגיע לסיומו...'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
 </html>

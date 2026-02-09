@@ -20,7 +20,7 @@
             background-color: #f0f7ff;
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            overflow-x: hidden;
         }
 
         @keyframes bounce-in {
@@ -49,7 +49,7 @@
             position: relative;
         }
 
-        /* Custom scrollbar for some containers if needed */
+        /* Custom scrollbar */
         ::-webkit-scrollbar {
           width: 8px;
         }
@@ -67,8 +67,8 @@
 <script type="importmap">
 {
   "imports": {
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4"
+    "react": "https://esm.sh/react@^19.2.4",
+    "react/": "https://esm.sh/react@^19.2.4/"
   }
 }
 </script>
@@ -126,7 +126,7 @@
 
         // --- Components ---
 
-        const ECGMonitor = ({ activity, height = 400, showLabels = true, timeLabel }) => {
+        const ECGMonitor = ({ activity, height = 400, showLabels = true }) => {
           const canvasRef = useRef(null);
           const dataPointsRef = useRef([]);
           const frameRef = useRef(0);
@@ -247,12 +247,6 @@
                     <div className="text-[10px] md:text-xs font-mono text-green-500 uppercase tracking-widest opacity-80">
                       ניטור רציף - LEAD II
                     </div>
-                    {timeLabel && (
-                      <div className="flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-green-500/50 text-white font-mono text-xl shadow-lg animate-pulse">
-                        <span className="text-green-400">🕒</span>
-                        <span>{timeLabel}</span>
-                      </div>
-                    )}
                   </div>
                   <div className="absolute top-3 right-4 flex flex-col items-end z-10 opacity-80">
                     <div className="text-[10px] md:text-xs font-mono text-green-500 uppercase">דופק (BPM)</div>
@@ -312,7 +306,7 @@
                 isCorrect,
                 message: isCorrect 
                   ? fact 
-                  : "לא בדיוק. שימו לב לקצב הלב - האם הוא מתאים לפעילות זו בשעה זו?"
+                  : "לא בדיוק. שימו לב לקצב הלב - האם הוא מתאים לפעילות זו?"
               }
             }));
 
@@ -336,7 +330,7 @@
           return (
             <div className="min-h-screen flex flex-col items-center justify-start bg-[#f0f7ff] text-slate-800 p-4 md:p-8 font-sans overflow-y-auto" dir="rtl">
               {/* Header */}
-              <header className="w-full max-w-4xl flex justify-between items-center mb-8 pb-4 border-b border-blue-200 shrink-0">
+              <header className="w-full max-w-6xl flex justify-between items-center mb-8 pb-4 border-b border-blue-200 shrink-0">
                 <div>
                   <h1 className="text-2xl md:text-4xl font-black text-slate-800 tracking-tight">
                     אתגר הדופק: <span className="text-blue-600">24 שעות</span>
@@ -358,75 +352,89 @@
               </header>
 
               {/* Main Game Area */}
-              <div className="w-full max-w-4xl flex-1 flex flex-col items-center justify-center">
+              <div className="w-full max-w-6xl flex-1 flex flex-col items-center justify-center">
                 
                 {state.phase === GamePhase.INTRO && (
-                  <div className="bg-white p-8 md:p-12 rounded-[2rem] border border-blue-100 shadow-2xl w-full animate-fade-in">
-                    <h2 className="text-3xl font-black mb-6 text-slate-800 text-center">איך הלב מגיב ליום שלנו?</h2>
-                    <p className="text-center text-slate-600 mb-10 text-lg leading-relaxed">
-                      הלב משנה את הקצב שלו לאורך כל היממה בהתאם למאמץ ולבריאות שלנו. <br/>
-                      המטרה: לזהות מה האדם עושה ב-6 נקודות זמן ביום (24 שעות).
-                    </p>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-                      {Object.values(ActivityLevel).map(level => (
-                        <div key={level} className="p-5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col gap-3 shadow-sm hover:shadow-md transition-shadow">
-                          <span className="font-bold text-slate-700 text-lg">{level}</span>
-                          <div className="h-20 w-full rounded-xl overflow-hidden border border-slate-300">
-                            <ECGMonitor activity={level} height={100} showLabels={false} />
-                          </div>
-                        </div>
-                      ))}
+                  <div className="bg-white p-6 md:p-10 rounded-[2rem] border border-blue-100 shadow-2xl w-full max-w-6xl animate-fade-in flex flex-col min-h-[70vh]">
+                    <div className="text-center mb-8">
+                        <h2 className="text-3xl font-black mb-3 text-slate-800">איך הלב מגיב ליום שלנו?</h2>
+                        <p className="text-slate-600 text-lg leading-relaxed max-w-2xl mx-auto">
+                          הלב משנה את הקצב שלו לאורך כל היממה בהתאם למאמץ ולבריאות שלנו. <br/>
+                          המטרה: לזהות מה האדם עושה ב-6 נקודות זמן ביום (24 שעות).
+                        </p>
                     </div>
                     
-                    <button 
-                      onClick={startGame}
-                      className="w-full py-6 bg-blue-600 hover:bg-blue-700 text-white font-black text-2xl rounded-2xl transition-all shadow-lg active:scale-95"
-                    >
-                      בואו נתחיל את היום!
-                    </button>
+                    <div className="flex flex-col md:flex-row flex-1 gap-8 items-center justify-center">
+                        {/* Previews Grid - Moved to the side for larger size */}
+                        <div className="flex-1 grid grid-cols-2 gap-4 w-full">
+                          {Object.values(ActivityLevel).map(level => (
+                            <div key={level} className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col gap-2 shadow-sm">
+                              <span className="font-bold text-slate-700 text-sm">{level}</span>
+                              <div className="h-24 w-full rounded-xl overflow-hidden border border-slate-300">
+                                <ECGMonitor activity={level} height={100} showLabels={false} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Centered Start Button Section */}
+                        <div className="w-full md:w-1/3 flex items-center justify-center">
+                            <button 
+                              onClick={startGame}
+                              className="w-full py-8 md:py-12 bg-blue-600 hover:bg-blue-700 text-white font-black text-2xl md:text-3xl rounded-3xl transition-all shadow-xl active:scale-95 border-b-4 border-blue-800"
+                            >
+                              בואו נתחיל את היום!
+                            </button>
+                        </div>
+                    </div>
                   </div>
                 )}
 
                 {state.phase === GamePhase.READY && (
                   <div className="flex-1 flex flex-col items-center justify-center animate-pulse">
                     <h2 className="text-7xl md:text-9xl font-black text-blue-600 tracking-tighter drop-shadow-xl">מתחילים...</h2>
-                    <p className="text-2xl text-slate-400 mt-6 italic">השעה 02:00, הלילה בעיצומו</p>
                   </div>
                 )}
 
                 {state.phase === GamePhase.PLAYING && (
-                  <div className="w-full flex flex-col gap-8 md:gap-10 animate-fade-in">
-                    <div className="text-center">
-                      <h3 className="text-2xl md:text-3xl font-black text-slate-800 mb-2">מה האדם עושה בשעה זו?</h3>
-                      <p className="text-slate-500 font-medium">בחנו את רצף הפעימות במוניטור</p>
+                  <div className="w-full flex flex-col md:flex-row gap-8 items-stretch animate-fade-in">
+                    {/* Left Column: ECG Screen */}
+                    <div className="flex-1 flex flex-col">
+                      <div className="mb-4 text-center md:text-right md:pr-4">
+                        <h3 className="text-xl md:text-2xl font-black text-slate-800">ניטור אקג בזמן אמת</h3>
+                        <p className="text-slate-500 font-medium">מה האדם עושה בשעה זו?</p>
+                      </div>
+                      <div className="flex-1 min-h-[300px] md:min-h-[440px]">
+                        <ECGMonitor 
+                          activity={currentEvent.activity} 
+                        />
+                      </div>
                     </div>
 
-                    <div className="w-full aspect-[16/9] md:aspect-[21/9] max-h-[440px]">
-                      <ECGMonitor 
-                        activity={currentEvent.activity} 
-                        timeLabel={currentEvent.time} 
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-6 pb-12">
-                      {Object.values(ActivityLevel).map((level) => (
-                        <button
-                          key={level}
-                          onClick={() => handleChoice(level)}
-                          disabled={state.feedback.show}
-                          className={`
-                            py-6 md:py-10 rounded-3xl border-2 transition-all duration-300 font-black text-2xl shadow-sm
-                            ${state.feedback.show && currentEvent.activity === level && state.feedback.isCorrect
-                              ? 'bg-green-500 border-green-400 text-white scale-105 z-10 shadow-green-200 shadow-xl'
-                              : 'bg-slate-200 border-slate-300 text-slate-700 hover:border-blue-400 hover:bg-blue-50 active:scale-95'
-                            }
-                            ${state.feedback.show && level !== currentEvent.activity ? 'opacity-30 blur-[1px]' : ''}
-                          `}
-                        >
-                          {level}
-                        </button>
-                      ))}
+                    {/* Right Column: Choices (Central Third area) */}
+                    <div className="w-full md:w-1/3 flex flex-col justify-center gap-4">
+                        <div className="hidden md:block mb-2 text-center">
+                             <h4 className="text-xl font-bold text-slate-600 underline decoration-blue-200 underline-offset-4">בחרו את הפעילות:</h4>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-1 gap-4">
+                            {Object.values(ActivityLevel).map((level) => (
+                                <button
+                                    key={level}
+                                    onClick={() => handleChoice(level)}
+                                    disabled={state.feedback.show}
+                                    className={`
+                                        py-6 md:py-8 px-4 rounded-3xl border-2 transition-all duration-300 font-black text-xl md:text-2xl shadow-sm
+                                        ${state.feedback.show && currentEvent.activity === level && state.feedback.isCorrect
+                                          ? 'bg-green-500 border-green-400 text-white scale-105 z-10 shadow-green-200 shadow-xl'
+                                          : 'bg-slate-200 border-slate-300 text-slate-700 hover:border-blue-400 hover:bg-blue-50 active:scale-95'
+                                        }
+                                        ${state.feedback.show && level !== currentEvent.activity ? 'opacity-30 blur-[1px]' : ''}
+                                    `}
+                                >
+                                    {level}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                   </div>
                 )}
